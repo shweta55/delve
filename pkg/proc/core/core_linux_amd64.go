@@ -43,7 +43,6 @@ const elfErrorBadMagicNumber = "bad magic number"
 // and, if absolutely desperate, readelf.c from the binutils source.
 func readLinuxAMD64Core(corePath, exePath string) (*Process, error) {
 	coreFile, err := elf.Open(corePath)
-	// corePath[core.2630] exePath[./coreDump]
 	if err != nil {
 		if _, isfmterr := err.(*elf.FormatError); isfmterr && (strings.Contains(err.Error(), elfErrorBadMagicNumber) || strings.Contains(err.Error(), " at offset 0x0: too short")) {
 			// Go >=1.11 and <1.11 produce different errors when reading a non-elf file.
@@ -65,7 +64,6 @@ func readLinuxAMD64Core(corePath, exePath string) (*Process, error) {
 	if exeELF.Type != elf.ET_EXEC && exeELF.Type != elf.ET_DYN {
 		return nil, fmt.Errorf("%v is not an exe file", exeELF)
 	}
-	//file.ty[ET_CORE], exe.ty[ET_EXEC]
 	notes, err := readNotes(coreFile)
 	if err != nil {
 		return nil, err
