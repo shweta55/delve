@@ -189,10 +189,6 @@ var (
 	ErrChangeRegisterCore = errors.New("can not change register values of core process")
 )
 
-type openFn func(string, string) (*Process, error)
-
-var openFns = []openFn{readLinuxAMD64Core, readAMD64Minidump}
-
 // ErrUnrecognizedFormat is returned when the core file is not recognized as
 // any of the supported formats.
 var ErrUnrecognizedFormat = errors.New("unrecognized core format")
@@ -203,12 +199,13 @@ var ErrUnrecognizedFormat = errors.New("unrecognized core format")
 func OpenCore(corePath, exePath string, debugInfoDirs []string) (*Process, error) {
 	var p *Process
 	var err error
-	for _, openFn := range openFns {
+for _, openFn := range openFns {
 		p, err = openFn(corePath, exePath)
 		if err != ErrUnrecognizedFormat {
 			break
 		}
 	}
+
 	if err != nil {
 		return nil, err
 	}
