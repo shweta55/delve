@@ -199,7 +199,7 @@ var ErrUnrecognizedFormat = errors.New("unrecognized core format")
 func OpenCore(corePath, exePath string, debugInfoDirs []string) (*Process, error) {
 	var p *Process
 	var err error
-for _, openFn := range openFns {
+	for _, openFn := range openFns {
 		p, err = openFn(corePath, exePath)
 		if err != ErrUnrecognizedFormat {
 			break
