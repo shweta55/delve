@@ -190,8 +190,7 @@ var (
 )
 
 type openFn func(string, string) (*Process, error)
-
-var openFns = []openFn{readLinuxAMD64Core, readAMD64Minidump}
+var openFns = []openFn{readLinuxCore, readAMD64Minidump}
 
 // ErrUnrecognizedFormat is returned when the core file is not recognized as
 // any of the supported formats.

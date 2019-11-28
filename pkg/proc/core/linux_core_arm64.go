@@ -23,21 +23,18 @@ type LinuxCoreTimeval struct {
 // NT_FILE is file mapping information, e.g. program text mappings. Desc is a LinuxNTFile.
 const NT_FILE elf.NType = 0x46494c45 // "FILE".
 
-// NT_X86_XSTATE is other registers, including AVX and such.
-const NT_X86_XSTATE elf.NType = 0x202 // Note type for notes containing X86 XSAVE area.
-
 // NT_AUXV is the note type for notes containing a copy of the Auxv array
 const NT_AUXV elf.NType = 0x6
 
 const elfErrorBadMagicNumber = "bad magic number"
 
-// readLinuxAMD64Core reads a core file from corePath corresponding to the executable at
+// readLinuxCore reads a core file from corePath corresponding to the executable at
 // exePath. For details on the Linux ELF core format, see:
 // http://www.gabriel.urdhr.fr/2015/05/29/core-file/,
 // http://uhlo.blogspot.fr/2012/05/brief-look-into-core-dumps.html,
 // elf_core_dump in http://lxr.free-electrons.com/source/fs/binfmt_elf.c,
 // and, if absolutely desperate, readelf.c from the binutils source.
-func readLinuxAMD64Core(corePath, exePath string) (*Process, error) {
+func readLinuxCore(corePath, exePath string) (*Process, error) {
 	coreFile, err := elf.Open(corePath)
 	if err != nil {
 		if _, isfmterr := err.(*elf.FormatError); isfmterr && (strings.Contains(err.Error(), elfErrorBadMagicNumber) || strings.Contains(err.Error(), " at offset 0x0: too short")) {
@@ -54,42 +51,35 @@ func readLinuxAMD64Core(corePath, exePath string) (*Process, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	if coreFile.Type != elf.ET_CORE {
 		return nil, fmt.Errorf("%v is not a core file", coreFile)
 	}
 	if exeELF.Type != elf.ET_EXEC && exeELF.Type != elf.ET_DYN {
 		return nil, fmt.Errorf("%v is not an exe file", exeELF)
 	}
-
 	notes, err := readNotes(coreFile)
 	if err != nil {
 		return nil, err
 	}
 	memory := buildMemory(coreFile, exeELF, exe, notes)
 	entryPoint := findEntryPoint(notes)
-
 	p := &Process{
 		mem:         memory,
 		Threads:     map[int]*Thread{},
 		entryPoint:  entryPoint,
-		bi:          proc.NewBinaryInfo("linux", "amd64"),
+		bi:          proc.NewBinaryInfo("linux", "arm64"),
 		breakpoints: proc.NewBreakpointMap(),
 	}
 
-	var lastThread *linuxAMD64Thread
+	var lastThread *linuxARM64Thread
 	for _, note := range notes {
 		switch note.Type {
 		case elf.NT_PRSTATUS:
 			t := note.Desc.(*LinuxPrStatus)
-			lastThread = &linuxAMD64Thread{linutil.AMD64Registers{Regs: &t.Reg}, t}
+			lastThread = &linuxARM64Thread{linutil.ARM64Registers{Regs: &t.Reg}, t}
 			p.Threads[int(t.Pid)] = &Thread{lastThread, p, proc.CommonThread{}}
 			if p.currentThread == nil {
 				p.currentThread = p.Threads[int(t.Pid)]
-			}
-		case NT_X86_XSTATE:
-			if lastThread != nil {
-				lastThread.regs.Fpregs = note.Desc.(*linutil.AMD64Xstate).Decode()
 			}
 		case elf.NT_PRPSINFO:
 			p.pid = int(note.Desc.(*LinuxPrPsInfo).Pid)
@@ -98,13 +88,13 @@ func readLinuxAMD64Core(corePath, exePath string) (*Process, error) {
 	return p, nil
 }
 
-type linuxAMD64Thread struct {
-	regs linutil.AMD64Registers
+type linuxARM64Thread struct {
+	regs linutil.ARM64Registers
 	t    *LinuxPrStatus
 }
 
-func (t *linuxAMD64Thread) registers(floatingPoint bool) (proc.Registers, error) {
-	var r linutil.AMD64Registers
+func (t *linuxARM64Thread) registers(floatingPoint bool) (proc.Registers, error) {
+	var r linutil.ARM64Registers
 	r.Regs = t.regs.Regs
 	if floatingPoint {
 		r.Fpregs = t.regs.Fpregs
@@ -112,7 +102,7 @@ func (t *linuxAMD64Thread) registers(floatingPoint bool) (proc.Registers, error)
 	return &r, nil
 }
 
-func (t *linuxAMD64Thread) pid() int {
+func (t *linuxARM64Thread) pid() int {
 	return int(t.t.Pid)
 }
 
@@ -121,8 +111,7 @@ func (t *linuxAMD64Thread) pid() int {
 // - NT_FILE: File mapping information, e.g. program text mappings. Desc is a LinuxNTFile.
 // - NT_PRPSINFO: Information about a process, including PID and signal. Desc is a LinuxPrPsInfo.
 // - NT_PRSTATUS: Information about a thread, including base registers, state, etc. Desc is a LinuxPrStatus.
-// - NT_FPREGSET (Not implemented): x87 floating point registers.
-// - NT_X86_XSTATE: Other registers, including AVX and such.
+// - NT_FPREGSET (Not implemented): ARM floating point registers.
 type Note struct {
 	Type elf.NType
 	Name string
@@ -209,12 +198,6 @@ func readNote(r io.ReadSeeker) (*Note, error) {
 			data.entries = append(data.entries, entry)
 		}
 		note.Desc = data
-	case NT_X86_XSTATE:
-		var fpregs linutil.AMD64Xstate
-		if err := linutil.AMD64XstateRead(desc, true, &fpregs); err != nil {
-			return nil, err
-		}
-		note.Desc = &fpregs
 	case NT_AUXV:
 		note.Desc = desc
 	}
@@ -286,7 +269,7 @@ func findEntryPoint(notes []*Note) uint64 {
 }
 
 // LinuxPrPsInfo has various structures from the ELF spec and the Linux kernel.
-// AMD64 specific primarily because of unix.PtraceRegs, but also
+// ARM64 specific primarily because of unix.PtraceRegs, but also
 // because some of the fields are word sized.
 // See http://lxr.free-electrons.com/source/include/uapi/linux/elfcore.h
 type LinuxPrPsInfo struct {
@@ -311,7 +294,7 @@ type LinuxPrStatus struct {
 	Sighold                      uint64
 	Pid, Ppid, Pgrp, Sid         int32
 	Utime, Stime, CUtime, CStime LinuxCoreTimeval
-	Reg                          linutil.AMD64PtraceRegs
+	Reg                          linutil.ARM64PtraceRegs
 	Fpvalid                      int32
 }
 
