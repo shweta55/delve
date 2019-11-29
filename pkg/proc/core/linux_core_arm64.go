@@ -26,6 +26,8 @@ const NT_FILE elf.NType = 0x46494c45 // "FILE".
 // NT_AUXV is the note type for notes containing a copy of the Auxv array
 const NT_AUXV elf.NType = 0x6
 
+const NT_FPREGSET elf.NType = 0x2
+
 const elfErrorBadMagicNumber = "bad magic number"
 
 // readLinuxCore reads a core file from corePath corresponding to the executable at
@@ -80,6 +82,10 @@ func readLinuxCore(corePath, exePath string) (*Process, error) {
 			p.Threads[int(t.Pid)] = &Thread{lastThread, p, proc.CommonThread{}}
 			if p.currentThread == nil {
 				p.currentThread = p.Threads[int(t.Pid)]
+			}
+		case NT_FPREGSET:
+			if lastThread != nil {
+				lastThread.regs.Fpregs = note.Desc.(*linutil.ARM64PtraceFpRegs).Decode()
 			}
 		case elf.NT_PRPSINFO:
 			p.pid = int(note.Desc.(*LinuxPrPsInfo).Pid)
@@ -198,6 +204,13 @@ func readNote(r io.ReadSeeker) (*Note, error) {
 			data.entries = append(data.entries, entry)
 		}
 		note.Desc = data
+	case NT_FPREGSET:
+		fpregs := &linutil.ARM64PtraceFpRegs{}
+		rdr := bytes.NewReader(desc[:_ARM_FP_HEADER_START])
+		if err := binary.Read(rdr, binary.LittleEndian, fpregs.Byte()); err != nil {
+			return nil, err	
+		}
+		note.Desc = fpregs
 	case NT_AUXV:
 		note.Desc = desc
 	}
@@ -268,6 +281,9 @@ func findEntryPoint(notes []*Note) uint64 {
 	return 0
 }
 
+const (
+	_ARM_FP_HEADER_START          = 512
+)
 // LinuxPrPsInfo has various structures from the ELF spec and the Linux kernel.
 // ARM64 specific primarily because of unix.PtraceRegs, but also
 // because some of the fields are word sized.
