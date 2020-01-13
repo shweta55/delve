@@ -131,25 +131,21 @@ func (r *ARM64Registers) Copy() proc.Registers {
 }
 
 type ARM64PtraceFpRegs struct {
-	vregs [512]byte
-	fpsr  uint32
-	fpcr  uint32
+	Vregs []byte
+	Fpsr  uint32
+	Fpcr  uint32
 }
 
+const _ARM_FP_REGS_LENGTH = 512
+
 func (fpregs *ARM64PtraceFpRegs) Decode() (regs []proc.Register) {
-	for i := 0; i < len(fpregs.vregs); i += 16 {
-		regs = proc.AppendFPReg(regs, fmt.Sprintf("V%d", i/16), fpregs.vregs[i:i+16])
+	for i := 0; i < len(fpregs.Vregs); i += 16 {
+		regs = proc.AppendFPReg(regs, fmt.Sprintf("V%d", i/16), fpregs.Vregs[i:i+16])
 	}
 	return
 }
 
 func (fpregs *ARM64PtraceFpRegs) Byte() []byte {
-	return fpregs.vregs[:]
-}
-
-func Decode(fpregs []byte) (regs []proc.Register) {
-	for i := 0; i < len(fpregs); i += 16 {
-		regs = proc.AppendFPReg(regs, fmt.Sprintf("V%d", i/16), fpregs[i:i+16])
-	}
-	return
+	fpregs.Vregs = make([]byte, _ARM_FP_REGS_LENGTH)
+	return fpregs.Vregs[:]
 }

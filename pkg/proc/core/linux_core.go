@@ -272,11 +272,13 @@ func readNote(r io.ReadSeeker, machineType elf.Machine) (*Note, error) {
 		}
 		note.Desc = data
 	case NT_X86_XSTATE:
-		var fpregs linutil.AMD64Xstate
-		if err := linutil.AMD64XstateRead(desc, true, &fpregs); err != nil {
-			return nil, err
+		if machineType == EM_X86_64 {
+			var fpregs linutil.AMD64Xstate
+			if err := linutil.AMD64XstateRead(desc, true, &fpregs); err != nil {
+				return nil, err
+			}
+			note.Desc = &fpregs
 		}
-		note.Desc = &fpregs
 	case NT_AUXV:
 		note.Desc = desc
 	case NT_FPREGSET:
