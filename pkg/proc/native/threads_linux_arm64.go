@@ -14,13 +14,13 @@ import (
 
 func (thread *Thread) fpRegisters() ([]proc.Register, []byte, error) {
 	var err error
-	var myfpregs linutil.ARM64PtraceFpRegs
-	thread.dbp.execPtraceFunc(func() { myfpregs.Vregs, err = PtraceGetFpRegset(thread.ID) })
-	fpregs := myfpregs.Decode()
+	var arm_fpregs linutil.ARM64PtraceFpRegs
+	thread.dbp.execPtraceFunc(func() { arm_fpregs.Vregs, err = PtraceGetFpRegset(thread.ID) })
+	fpregs := arm_fpregs.Decode()
 	if err != nil {
 		err = fmt.Errorf("could not get floating point registers: %v", err.Error())
 	}
-	return fpregs, myfpregs.Vregs, err
+	return fpregs, arm_fpregs.Vregs, err
 }
 
 func (t *Thread) restoreRegisters(savedRegs proc.Registers) error {
